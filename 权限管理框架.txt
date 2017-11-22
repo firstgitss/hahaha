@@ -1,0 +1,366 @@
+　shiro能做什么？
+
+　　　　　　　认证：验证用户的身份
+
+　　　　　　　授权：对用户执行访问控制：判断用户是否被允许做某事
+
+　　　　　　　会话管理：在任何环境下使用 Session API，即使没有 Web 或EJB 容器。
+
+　　　　　　　加密：以更简洁易用的方式使用加密功能，保护或隐藏数据防止被偷窥
+
+　　　　　　　Realms：聚集一个或多个用户安全数据的数据源
+
+　　　　　　　单点登录（SSO）功能。
+
+　　　　　　　为没有关联到登录的用户启用 "Remember Me“ 服务
+
+　　Shiro 的四大核心部分
+
+　　　　　　Authentication(身份验证)：简称为“登录”，即证明用户是谁。
+
+　　　　　　Authorization(授权)：访问控制的过程，即决定是否有权限去访问受保护的资源。
+
+　　　　　　Session Management(会话管理)：管理用户特定的会话，即使在非 Web 或 EJB 应用程序。
+
+　　　　　　Cryptography(加密)：通过使用加密算法保持数据安全
+
+　　shiro的三个核心组件：　　　　　
+
+　　　　　　Subject ：正与系统进行交互的人，或某一个第三方服务。所有 Subject 实例都被绑定到（且这是必须的）一个SecurityManager 上。
+
+　　　　　　SecurityManager：Shiro 架构的心脏，用来协调内部各安全组件，管理内部组件实例，并通过它来提供安全管理的各种服务。当 Shiro 与一个 Subject 进行交互时，实质上是幕后的 SecurityManager 处理所有繁重的 Subject 安全操作。
+
+　　　　　　Realms ：本质上是一个特定安全的 DAO。当配置 Shiro 时，必须指定至少一个 Realm 用来进行身份验证和/或授权。Shiro 提供了多种可用的 Realms 来获取安全相关的数据。如关系数据库(JDBC)，INI 及属性文件等。可以定义自己 Realm 实现来代表自定义的数据源。
+
+ 
+
+　　shiro整合SSM框架：
+
+　　　　　　1.加入 jar 包：以下jar包自行百度下载
+
+　　　　　　
+
+　　　　　　2.配置 web.xml 文件
+
+　　　　　　在web.xml中加入以下代码—shiro过滤器。
+
+复制代码
+<filter>
+        <filter-name>shiroFilter</filter-name>
+        <filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class>
+        <init-param>
+            <param-name>targetFilterLifecycle</param-name>
+            <param-value>true</param-value>
+        </init-param>
+    </filter>
+
+    <filter-mapping>
+        <filter-name>shiroFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+复制代码
+ 
+
+　　　　　　3.在 Spring 的配置文件中配置 Shiro
+
+　　　　　　Springmvc配置文件中：
+
+复制代码
+<bean class="org.springframework.aop.framework.autoproxy.DefaultAdvisorAutoProxyCreator"
+          depends-on="lifecycleBeanPostProcessor"/>
+    <bean class="org.apache.shiro.spring.security.interceptor.AuthorizationAttributeSourceAdvisor">
+        <property name="securityManager" ref="securityManager"/>
+    </bean>
+复制代码
+　　　　　　Spring配置文件中导入shiro配置文件：
+
+<!-- 包含shiro的配置文件 -->
+          <import resource="classpath:applicationContext-shiro.xml"/>
+　　　　　　新建applicationContext-shiro.xml
+
+复制代码
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+    <!-- 配置緩存管理器 -->
+    <bean id="cacheManager" class="org.apache.shiro.cache.ehcache.EhCacheManager">
+        <!-- 指定 ehcache 的配置文件，下面会给到 -->
+        <property name="cacheManagerConfigFile" value="classpath:ehcache-shiro.xml"/>
+    </bean>
+
+    <!-- 配置进行授权和认证的 Realm，要新增一个java类来实现，下面会有，class=包名.类名，init-methood是初始化的方法 -->
+    <bean id="myRealm"
+        class="shiro.MyRealm"
+        init-method="setCredentialMatcher"></bean>
+
+    <!-- 配置 Shiro 的 SecurityManager Bean. -->
+    <bean id="securityManager" class="org.apache.shiro.web.mgt.DefaultWebSecurityManager">
+        <property name="cacheManager" ref="cacheManager"/>
+        <property name="realm" ref="myRealm"/>
+    </bean>
+    
+    <!-- 配置 Bean 后置处理器: 会自动的调用和 Spring 整合后各个组件的生命周期方法. -->
+    <bean id="lifecycleBeanPostProcessor" 
+        class="org.apache.shiro.spring.LifecycleBeanPostProcessor"/>
+
+    <!-- 配置 ShiroFilter bean: 该 bean 的 id 必须和 web.xml 文件中配置的 shiro filter 的 name 一致  -->
+    <bean id="shiroFilter" class="org.apache.shiro.spring.web.ShiroFilterFactoryBean">
+        <!-- 装配 securityManager -->
+        <property name="securityManager" ref="securityManager"/>
+        <!-- 配置登陆页面 -->
+        <property name="loginUrl" value="/index.jsp"/>
+        <!-- 登陆成功后的一面 -->
+        <property name="successUrl" value="/shiro-success.jsp"/>
+        <property name="unauthorizedUrl" value="/shiro-unauthorized.jsp"/>
+        <!-- 具体配置需要拦截哪些 URL, 以及访问对应的 URL 时使用 Shiro 的什么 Filter 进行拦截.  -->
+        <property name="filterChainDefinitions">
+            <value>
+                <!-- 配置登出: 使用 logout 过滤器 -->
+                /shiro-logout = logout
+                /shiro-* = anon
+                /user.jsp = roles[user]
+                /admin.jsp = roles[admin]
+                /** = authc
+            </value>
+        </property>
+    </bean>
+
+</beans>
+复制代码
+ 　　　　导入ehcache-shiro.xml配置文件：
+
+复制代码
+<!--
+  ~ Licensed to the Apache Software Foundation (ASF) under one
+  ~ or more contributor license agreements.  See the NOTICE file
+  ~ distributed with this work for additional information
+  ~ regarding copyright ownership.  The ASF licenses this file
+  ~ to you under the Apache License, Version 2.0 (the
+  ~ "License"); you may not use this file except in compliance
+  ~ with the License.  You may obtain a copy of the License at
+  ~
+  ~     http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing,
+  ~ software distributed under the License is distributed on an
+  ~ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+  ~ KIND, either express or implied.  See the License for the
+  ~ specific language governing permissions and limitations
+  ~ under the License.
+  -->
+
+<!-- EhCache XML configuration file used for Shiro spring sample application -->
+<ehcache>
+
+    <!-- Sets the path to the directory where cache .data files are created.
+
+If the path is a Java System Property it is replaced by
+its value in the running VM.
+
+The following properties are translated:
+user.home - User's home directory
+user.dir - User's current working directory
+java.io.tmpdir - Default temp file path -->
+    <diskStore path="java.io.tmpdir/shiro-spring-sample"/>
+
+
+    <!--Default Cache configuration. These will applied to caches programmatically created through
+    the CacheManager.
+
+    The following attributes are required:
+
+    maxElementsInMemory            - Sets the maximum number of objects that will be created in memory
+    eternal                        - Sets whether elements are eternal. If eternal,  timeouts are ignored and the
+                                     element is never expired.
+    overflowToDisk                 - Sets whether elements can overflow to disk when the in-memory cache
+                                     has reached the maxInMemory limit.
+
+    The following attributes are optional:
+    timeToIdleSeconds              - Sets the time to idle for an element before it expires.
+                                     i.e. The maximum amount of time between accesses before an element expires
+                                     Is only used if the element is not eternal.
+                                     Optional attribute. A value of 0 means that an Element can idle for infinity.
+                                     The default value is 0.
+    timeToLiveSeconds              - Sets the time to live for an element before it expires.
+                                     i.e. The maximum time between creation time and when an element expires.
+                                     Is only used if the element is not eternal.
+                                     Optional attribute. A value of 0 means that and Element can live for infinity.
+                                     The default value is 0.
+    diskPersistent                 - Whether the disk store persists between restarts of the Virtual Machine.
+                                     The default value is false.
+    diskExpiryThreadIntervalSeconds- The number of seconds between runs of the disk expiry thread. The default value
+                                     is 120 seconds.
+    memoryStoreEvictionPolicy      - Policy would be enforced upon reaching the maxElementsInMemory limit. Default
+                                     policy is Least Recently Used (specified as LRU). Other policies available -
+                                     First In First Out (specified as FIFO) and Less Frequently Used
+                                     (specified as LFU)
+    -->
+
+    <defaultCache
+            maxElementsInMemory="10000"
+            eternal="false"
+            timeToIdleSeconds="120"
+            timeToLiveSeconds="120"
+            overflowToDisk="false"
+            diskPersistent="false"
+            diskExpiryThreadIntervalSeconds="120"
+            />
+
+    <!-- We want eternal="true" (with no timeToIdle or timeToLive settings) because Shiro manages session
+expirations explicitly.  If we set it to false and then set corresponding timeToIdle and timeToLive properties,
+ehcache would evict sessions without Shiro's knowledge, which would cause many problems
+(e.g. "My Shiro session timeout is 30 minutes - why isn't a session available after 2 minutes?"
+Answer - ehcache expired it due to the timeToIdle property set to 120 seconds.)
+
+diskPersistent=true since we want an enterprise session management feature - ability to use sessions after
+even after a JVM restart.  -->
+    <cache name="shiro-activeSessionCache"
+           maxElementsInMemory="10000"
+           eternal="true"
+           overflowToDisk="true"
+           diskPersistent="true"
+           diskExpiryThreadIntervalSeconds="600"/>
+
+    <cache name="org.apache.shiro.realm.SimpleAccountRealm.authorization"
+           maxElementsInMemory="100"
+           eternal="false"
+           timeToLiveSeconds="600"
+           overflowToDisk="false"/>
+
+</ehcache>
+复制代码
+ 　　　　　到这一步，配置文件都基本准备好了，接下来要写Realm方法了，新建shiro包，在包下新建MyRealm.java文件继承AuthorizingRealm
+
+复制代码
+package shiro;
+
+import org.apache.shiro.authc.AuthenticationException;
+import org.apache.shiro.authc.AuthenticationInfo;
+import org.apache.shiro.authc.AuthenticationToken;
+import org.apache.shiro.authc.SimpleAuthenticationInfo;
+import org.apache.shiro.authc.credential.HashedCredentialsMatcher;
+import org.apache.shiro.authz.AuthorizationInfo;
+import org.apache.shiro.authz.SimpleAuthorizationInfo;
+import org.apache.shiro.crypto.hash.Md5Hash;
+import org.apache.shiro.crypto.hash.SimpleHash;
+import org.apache.shiro.realm.AuthorizingRealm;
+import org.apache.shiro.subject.PrincipalCollection;
+import org.apache.shiro.util.ByteSource;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import bean.user;
+import dao.userdao;
+
+public class MyRealm extends AuthorizingRealm {
+    @Autowired
+    private userdao userdao;    
+    String pass;
+
+    /**
+     * 授权:
+     * 
+     */
+    @Override
+    protected AuthorizationInfo doGetAuthorizationInfo(PrincipalCollection principalCollection) {
+        SimpleAuthorizationInfo info = new SimpleAuthorizationInfo();        
+        Object principal = principalCollection.getPrimaryPrincipal();//获取登录的用户名    
+        if("admin".equals(principal)){               //两个if根据判断赋予登录用户权限
+            info.addRole("admin");
+        }
+        if("user".equals(principal)){
+            info.addRole("list");
+        }
+        
+        info.addRole("user");
+        
+        return info;
+    }
+
+    /*
+     * 用户验证
+     * 
+     */
+    @Override
+    protected AuthenticationInfo doGetAuthenticationInfo(AuthenticationToken token) throws AuthenticationException {   
+        //1. token 中获取登录的 username! 注意不需要获取password.
+        Object principal = token.getPrincipal();
+                
+        //2. 利用 username 查询数据库得到用户的信息. 
+        user user=userdao.findbyname((String) principal);
+        if(user!=null){
+            pass=user.getPass();
+        }
+        String credentials = pass;
+        //3.设置盐值 ，（加密的调料，让加密出来的东西更具安全性，一般是通过数据库查询出来的。 简单的说，就是把密码根据特定的东西而进行动态加密，如果别人不知道你的盐值，就解不出你的密码）
+        String source = "abcdefg";
+        ByteSource credentialsSalt = new Md5Hash(source);
+   
+        
+        //当前 Realm 的name
+        String realmName = getName();
+        //返回值实例化
+        SimpleAuthenticationInfo info = 
+                new SimpleAuthenticationInfo(principal, credentials, 
+                        credentialsSalt, realmName);
+        
+        return info;
+    }
+
+    //init-method 配置. 
+    public void setCredentialMatcher(){
+        HashedCredentialsMatcher  credentialsMatcher = new HashedCredentialsMatcher();    
+        credentialsMatcher.setHashAlgorithmName("MD5");//MD5算法加密
+        credentialsMatcher.setHashIterations(1024);//1024次循环加密      
+        setCredentialsMatcher(credentialsMatcher);
+    }
+    
+    
+    //用来测试的算出密码password盐值加密后的结果，下面方法用于新增用户添加到数据库操作的，我这里就直接用main获得，直接数据库添加了，省时间
+    public static void main(String[] args) {
+        String saltSource = "abcdef";    
+        String hashAlgorithmName = "MD5";
+        String credentials = "passwor";
+        Object salt = new Md5Hash(saltSource);
+        int hashIterations = 1024;            
+        Object result = new SimpleHash(hashAlgorithmName, credentials, salt, hashIterations);
+        System.out.println(result);
+    }
+
+}
+复制代码
+ 　　　　好了，接下来我们写一个简单的action来通过shiro登录验证。
+
+复制代码
+//登录认证
+    @RequestMapping("/shiro-login")
+    public String login(@RequestParam("username") String username, 
+            @RequestParam("password") String password){
+        Subject subject = SecurityUtils.getSubject();
+        UsernamePasswordToken token = new UsernamePasswordToken(username, password);        
+        try {
+            //执行认证操作. 
+            subject.login(token);
+        }catch (AuthenticationException ae) {
+            System.out.println("登陆失败: " + ae.getMessage());
+            return "/index";
+        }
+        
+        return "/shiro-success";
+    }
+
+复制代码
+复制代码
+//温馨提示：记得在注册中密码存入数据库前也记得加密哦，提供一个utils方法
+//进行shiro加密，返回加密后的结果
+public static String md5(String pass){
+String saltSource = "blog";    
+String hashAlgorithmName = "MD5";
+Object salt = new Md5Hash(saltSource);
+int hashIterations = 1024;    
+Object result = new SimpleHash(hashAlgorithmName, pass, salt, hashIterations);
+String password = result.toString();
+return password;
+}
+复制代码
